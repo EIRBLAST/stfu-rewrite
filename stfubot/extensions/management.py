@@ -426,9 +426,13 @@ class management(commands.Cog):
             title=translation["ascend"]["3"], color=disnake.Color.blue()
         )
         await Interaction.channel.send(embed=embed)
-    
+
     @commands.max_concurrency(1, per=commands.BucketType.user, wait=False)
-    @stand.sub_command(name="trade", description="trade a stand with someone else")
+    @stand.sub_command(
+        name="trade",
+        description="trade a stand with someone else",
+        guild_ids=[742654613282619473, 830042402685321226],
+    )
     async def trade(
         self, Interaction: disnake.ApplicationCommandInteraction, tradee: disnake.Member
     ):
@@ -436,18 +440,6 @@ class management(commands.Cog):
         user1 = await self.stfubot.database.get_user_info(Interaction.author.id)
         user1.discord = Interaction.author
 
-        if True:
-            embed = disnake.Embed(
-                title="An error has occurred",
-                description="This command is disabled while we investigate a bug",
-                color=disnake.Color.red(),
-            )
-            embed.set_thumbnail(
-                url="https://storage.stfurequiem.com/randomAsset/avatar.png"
-            )
-            await Interaction.send(embed=embed)
-            return
-        
         if tradee == user1.discord:
             embed = disnake.Embed(
                 title="An error has occurred",
@@ -487,7 +479,7 @@ class management(commands.Cog):
             embed = disnake.Embed(
                 title="Error",
                 description=f"{tradee.display_name} refused the trade",
-                color=0xFF0000,
+                color=disnake.Color.red(),
             )
             embed.set_thumbnail(
                 url="https://storage.stfurequiem.com/randomAsset/avatar.png"
@@ -499,7 +491,7 @@ class management(commands.Cog):
             embed = disnake.Embed(
                 title="An error has occurred",
                 description=f"It seems one of you don't have any stand",
-                color=0xFF0000,
+                color=disnake.Color.red(),
             )
             embed.set_thumbnail(
                 url="https://storage.stfurequiem.com/randomAsset/avatar.png"
@@ -507,64 +499,46 @@ class management(commands.Cog):
             await Interaction.response.edit_message(embed=embed, view=None)
             return
         embed = disnake.Embed(
-            title=f"{Interaction.author.display_name}, Which stand would you like to trade ?"
+            title=f"{user1.discord.display_name}, Which stand would you like to trade ?"
         )
         embed.set_thumbnail(url=tradeUrl)
         stands = []
-        # get the second stand to exange
-        for i, s in enumerate(User1["main_stand"]):
-            stands.append([self.fixpool[s[0] - 1], s[1], i])
-        for i, s in enumerate(stands):
-            stars = "⭐" * s[0]["stars"] + "🌟" * s[1]
+        # get the first stand to trade
+        for stand in user1.stands:
+            etoile = stand.stars * "⭐" + "🌟" * stand.ascension
             embed.add_field(
-                name=f"｢{s[0]['stand_name']}｣:{i+1}",
-                value=f"{stars}",
-                inline=False,
+                name=f"`『{stand.name}』`level:{stand.level}\n",
+                value=f"`{etoile}`\n    ▬▬▬▬▬▬▬▬▬",
+                inline=True,
             )
-        view = StandSelectDropdown(Interaction, User1["main_stand"])
+        view = StandSelectDropdown(Interaction, user1.stands)
         await Interaction.edit_original_message(embed=embed, view=view)
         time_out = await view.wait()
         if time_out:
             raise asyncio.TimeoutError
         choix1 = view.value
-        # get the first stand to exange
-        stands = []
+        # get the second stand to exange
         embed = disnake.Embed(
-            title=f"{user.display_name}, which stand would you like to trade ?"
+            title=f"{user2.discord.display_name}, which stand would you like to trade ?"
         )
-        embed.set_thumbnail(url=tradeUrl)
-        for i, s in enumerate(User2["main_stand"]):
-            stands.append([self.fixpool[s[0] - 1], s[1], i])
-        for i, s in enumerate(stands):
-            stars = "⭐" * s[0]["stars"] + "🌟" * s[1]
+        for stand in user2.stands:
+            etoile = stand.stars * "⭐" + "🌟" * stand.ascension
             embed.add_field(
-                name=f"｢{s[0]['stand_name']}｣:{i+1}",
-                value=f"{stars}",
-                inline=False,
+                name=f"`『{stand.name}』`level:{stand.level}\n",
+                value=f"`{etoile}`\n    ▬▬▬▬▬▬▬▬▬",
+                inline=True,
             )
-        view = StandSelectDropdown(Interaction, User2["main_stand"], custom_user=user)
+        view = StandSelectDropdown(Interaction, user2.stands, custom_user=user2.discord)
         await Interaction.edit_original_message(embed=embed, view=view)
         time_out = await view.wait()
         if time_out:
             raise asyncio.TimeoutError
         choix2 = int(view.children[0].values[0])
-        users = [user, Interaction.author]
+        users: list[disnake.Member] = [user1.discord, user2.discord]
 
-        stands = []
-        stands.append(
-            [
-                self.fixpool[User1["main_stand"][choix1][0] - 1],
-                User1["main_stand"][choix1][1],
-                0,
-            ]
-        )
-        stands.append(
-            [
-                self.fixpool[User2["main_stand"][choix2][0] - 1],
-                User2["main_stand"][choix2][1],
-                1,
-            ]
-        )
+        stands: list[Stand] = []
+        stands.append(user1.stands[choix1])
+        stands.append(user2.stands[choix2])
         for user_ in users:
             embed = disnake.Embed(
                 title=f"{user_.display_name}, do you accept the trade ?"
@@ -587,21 +561,22 @@ class management(commands.Cog):
                 embed = disnake.Embed(
                     title="Error",
                     description=f"{user_.display_name} refused the trade",
-                    color=0xFF0000,
+                    color=disnake.Color.red(),
                 )
                 embed.set_thumbnail(
                     url="https://storage.stfurequiem.com/randomAsset/avatar.png"
                 )
                 await Interaction.edit_original_message(embed=embed, view=None)
                 return
-        User1["main_stand"][choix1], User2["main_stand"][choix2] = (
-            User2["main_stand"][choix2],
-            User1["main_stand"][choix1],
+        user1.stands[choix1], user2.stands[choix2] = (
+            user2.stands[choix2],
+            user1.stands[choix1],
         )
-        await self.database.Update(User1)
-        await self.database.Update(User2)
+        await user1.update()
+        await user2.update()
         embed = disnake.Embed(title=f"Done, the trade was successful !")
         await Interaction.edit_original_message(embed=embed, view=None)
+
 
 def setup(client: StfuBot):
     client.add_cog(management(client))
